@@ -1,0 +1,74 @@
+name: Clone NequIP packages
+
+inputs:
+  package_names:
+    description: 'Colon-separated list of package/repository names'
+    required: true
+  ssh_keys:
+    description: 'Colon-separated list of SSH private keys base64 encoded (corresponding to package_names)'
+    required: true
+  branch:
+    description: 'Branch to clone'
+    required: false
+    default: 'main'
+  private_flag:
+    description: 'Determines whether to clone private or public repos. If true, packages must be accompanied by SSH keys.'
+    required: false
+    type: boolean
+    default: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup repositories
+      shell: bash
+      run: |
+        set -e
+
+        # Convert input strings to arrays
+        IFS=':' read -ra PACKAGES <<< "${{ inputs.package_names }}"
+        BRANCH="${{ inputs.branch }}"
+        PRIVATE="${{ inputs.private_flag }}"
+
+        if [ "$PRIVATE" = "true" ]; then
+          # Convert input strings to arrays
+          IFS=':' read -ra KEYS <<< "${{ inputs.ssh_keys }}"
+
+          # Verify array lengths match
+          if [ ${#PACKAGES[@]} -ne ${#KEYS[@]} ]; then
+            echo "Error: Number of packages doesn't match number of SSH keys"
+            exit 1
+          fi
+        fi
+
+        # Process each package (and key, if private)
+        for i in "${!PACKAGES[@]}"; do
+          PACKAGE="${PACKAGES[$i]}"
+
+          if [ -d "$PACKAGE" ]; then
+            echo "Directory '$PACKAGE' exists, cleaning up..."
+            rm -rf "$PACKAGE"
+          fi
+
+          if [ "$PRIVATE" = "true" ]; then
+            KEY="${KEYS[$i]}"
+
+            # Create temporary key file
+            KEY_FILE=$(mktemp)
+            chmod 600 "$KEY_FILE"
+            # The use of base64 avoids issues with newlines in GitHub Actions secrets
+            echo "$KEY" | base64 -d > "$KEY_FILE"
+
+            # Clone repository using the key
+            # We put it into the name without -private to maintain consistency with the public repository
+            # StrictHostKeyChecking=accept-new is used to automatically accept new host keys and avoid hanging on the user prompt
+            GIT_SSH_COMMAND="ssh -i $KEY_FILE -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+              git clone --depth 1 "git@github.com:mir-group/${PACKAGE}-private.git" "$PACKAGE" -b "$BRANCH"
+
+            # Clean up key file
+            rm "$KEY_FILE"
+          else
+            # Clone public repository without SSH keys
+            git clone --depth 1 "https://github.com/mir-group/${PACKAGE}.git" "$PACKAGE" -b "$BRANCH"
+          fi
+        done

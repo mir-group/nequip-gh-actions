@@ -1,4 +1,4 @@
-# nequip-gh-actions-private
+# nequip-gh-actions
 Repository for shared nequip GitHub actions workflows
 
 This repo contains a GitHub Actions reusable "Composite Action" to clone private repos. The workflow automatically checks out `main` or `develop` depending on what branch the tests are running on.

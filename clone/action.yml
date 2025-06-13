@@ -32,7 +32,8 @@ runs:
 
         if [ "$PRIVATE" = "true" ]; then
           # Convert input strings to arrays
-          IFS=':' read -ra KEYS <<< "${{ inputs.ssh_keys }}"
+          SSH_KEYS_CLEAN=$(echo "${{ inputs.ssh_keys }}" | tr -d '\r\n')
+          IFS=':' read -ra KEYS <<< "$SSH_KEYS_CLEAN"
 
           # Verify array lengths match
           if [ ${#PACKAGES[@]} -ne ${#KEYS[@]} ]; then
